@@ -44,11 +44,7 @@ classdef Shape_ISOQ4 < Shape
          function Nm = shapeFncMtrx(this,Xn)
 
              % Vector with the shape functions
-             N = this.shapeFnc(Xn);
-            
-             % Shape function matrix
-             Nm = [N(1)  0.0   N(2)  0.0   N(3)  0.0   N(4)  0.0;
-                   0.0   N(1)  0.0   N(2)  0.0   N(3)  0.0   N(4)];
+             Nm = this.shapeFnc(Xn);
 
          end
 
@@ -109,14 +105,14 @@ classdef Shape_ISOQ4 < Shape
 
             % Compute the derivatives of the shape functions wrt to the
             % global cartesian coordinate system
-            dNdx = J\dNdxn;
+            B = J\dNdxn;
 
-            B = zeros(3,4*2);
-            for i = 1:4
-                B(1,2*i-1) = dNdx(1,i); 
-                B(2,2*i)   = dNdx(2,i);
-                B(3,2*i-1) = dNdx(2,i); B(3,2*i) = dNdx(1,i);
-            end
+%             B = zeros(3,4*2);
+%             for i = 1:4
+%                 B(1,2*i-1) = dNdx(1,i); 
+%                 B(2,2*i)   = dNdx(2,i);
+%                 B(3,2*i-1) = dNdx(2,i); B(3,2*i) = dNdx(1,i);
+%             end
 
          end
 

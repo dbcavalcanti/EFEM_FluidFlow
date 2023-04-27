@@ -25,7 +25,7 @@ classdef IntPoint < handle
         statevarOld     = [];  % Previous state variables vector
         constitutiveMdl = [];  % Constitutive model object
         anm             = '';  % Analysis model tag
-        nVar            = 3;   % Dimension of the stress and strain vectors
+        nVar            = 2;   % Dimension of the stress and strain vectors
     end
     
     %% Constructor method
@@ -33,10 +33,8 @@ classdef IntPoint < handle
         %------------------------------------------------------------------
         function this = IntPoint(X,w,anm,constitutiveMdl)
             if nargin > 0
-                if strcmp(anm,'PlaneStress')
-                    this.nVar = 3;
-                elseif strcmp(anm,'PlaneStrain')
-                    this.nVar = 3;
+                if strcmp(anm,'Hydro')
+                    this.nVar = 2;
                 elseif strcmp(anm,'Interface')
                     this.nVar = 2;
                 end

@@ -39,13 +39,9 @@ classdef Model < handle
         NODE_D              = [];            % Nodes of the fractures
         FRACT               = [];            % Fractures' nodes connectivity
         tractionLaw         = 'elastic';     % Discontinuity traction separation law
-        tractionLawPenal    = false;         % Flag for a penalination of compression in the traction separation law
         matfract            = [];            % Vector with the fracture cohesive parameters
         IDenr               = [];            % Matrix identifying the intersections
-        enhancementType     = 'KOS';         % String with the type of the SDA formulation ('KOS', 'KSON')
         subDivInt           = false;         % Flag for applying a sub-division of the domain to perform the numerical integration
-        stretch             = false;         % Flag for considering the stretch part of the mapping matrix
-        enrVar              = 'w';           % Chosen enrichment variable: 'w' or 'alpha'
         lvlEnrVar           = 'global';      % Level of the enrichment dofs ('local or 'global')
         jumpOrder           = 1;             % Order of the interpolation of the jump displacement field
         staticCondensation  = false;         % Flag for applying a static condensation of the additional dofs
@@ -64,8 +60,8 @@ classdef Model < handle
         totFreeDof          = [];            % Vector with the total free dofs
         ID                  = [];            % Each line of the ID matrix contains the global numbers for the node DOFs (DX, DY)
         IDfrac              = [];            % Each line of the ID matrix contains the global numbers for the node of the fracture DOFs (DX, DY)
-        GLA                 = [];            % Matrix with the regular dof of each element
-        GLW                 = [];            % Cell with the enhacement dof of each element
+        GLP                 = [];            % Matrix with the regular dof of each element
+        GLPenr                 = [];            % Cell with the enhacement dof of each element
         F                   = [];            % Global force vector
         U                   = [];            % Global displacement vector
         element             = [];            % Array with the element's objects
@@ -75,9 +71,9 @@ classdef Model < handle
     methods
         %------------------------------------------------------------------
         function this = Model(NODE, ELEM, NODE_D, FRACT, t, matModel, ...
-                mat, tractionLaw, tractionLawPenal, matfract, anm, type, SUPP, LOAD, ...
-                PRESCDISPL, intOrder,enhancementType, subDivInt, ...
-                stretch, enrVar, jumpOrder, lvlEnrVar, staticCondensation, IDenr)
+                mat, tractionLaw, matfract, anm, type, SUPP, LOAD, ...
+                PRESCDISPL, intOrder, subDivInt, ...
+                jumpOrder, lvlEnrVar, staticCondensation, IDenr)
 
             if (nargin > 0)
                 this.NODE               = NODE;
@@ -94,12 +90,8 @@ classdef Model < handle
                 this.NODE_D             = NODE_D;
                 this.FRACT              = FRACT;
                 this.tractionLaw        = tractionLaw;
-                this.tractionLawPenal   = tractionLawPenal;
                 this.matfract           = matfract;
-                this.enhancementType    = enhancementType;
                 this.subDivInt          = subDivInt;
-                this.stretch            = stretch;
-                this.enrVar             = enrVar;
                 this.lvlEnrVar          = lvlEnrVar;
                 this.staticCondensation = staticCondensation;
                 this.jumpOrder          = jumpOrder;
@@ -120,12 +112,12 @@ classdef Model < handle
             this.nfracnodes = size(this.NODE_D,1);
             this.nelem      = size(this.ELEM,1);     
             this.nnd_el     = size(this.ELEM,2);    
-            this.ndof_nd    = 2;               
+            this.ndof_nd    = 1;               
             this.ndof       = this.ndof_nd * this.nnodes; 
 
             % --- Assemble nodes DOF ids matrix ---------------------------
             %   Each line of the ID matrix contains the global numbers for 
-            %   the node DOFs (DX, DY). Free DOFs are numbered first.
+            %   the node DOFs (P). Free DOFs are numbered first.
             
             % Initialize the ID matrix and the number of fixed dof
             this.ID = zeros(this.nnodes,this.ndof_nd);
@@ -163,9 +155,9 @@ classdef Model < handle
             
             % Assemble the matrix with the degrees of freedom of each 
             % element
-            this.GLA = zeros(this.nelem, this.nnd_el*this.ndof_nd);
+            this.GLP = zeros(this.nelem, this.nnd_el*this.ndof_nd);
             for el = 1:this.nelem
-                this.GLA(el,:) = reshape(this.ID(this.ELEM(el,:),:)',1,...
+                this.GLP(el,:) = reshape(this.ID(this.ELEM(el,:),:)',1,...
                     this.nnd_el*this.ndof_nd);
             end
 
@@ -174,47 +166,49 @@ classdef Model < handle
             % embedded inside the element.
             % Initialize the matrix with the enhanced dof associated to
             % each node
-            this.GLW = cell(1,this.nelem);
+            this.GLPenr = cell(1,this.nelem);
            
-            if strcmp(this.lvlEnrVar,'global') && (this.jumpOrder == 1) && strcmp(this.enrVar,'w')
+            if strcmp(this.lvlEnrVar,'global') && (this.jumpOrder == 1)
                 
-                this.IDfrac = zeros(size(this.NODE_D));
+                this.IDfrac = zeros(size(this.NODE_D,1));
                 count = this.ndof + 1;
                 for i = 1:this.nfracnodes
-                    this.IDfrac(i,:) = [count, count+1];
+                    % Each discontinuity node has a jump of pressure and a
+                    % longitudinal pressure
+                    this.IDfrac(i,:) = [count count+1];
                     count = count + 2;
                 end
                 for el = 1:this.nelem
                     if sum(this.IDenr(el,:)) > 0
                         id = find(this.IDenr(el,:)==1);
                         for i = 1:length(id)
-                            this.GLW{el} = [this.IDfrac(this.FRACT(id(i),1),:),...
+                            this.GLPenr{el} = [this.IDfrac(this.FRACT(id(i),1),:),...
                                             this.IDfrac(this.FRACT(id(i),2),:)];
                         end
                     end
                 end
             
-            elseif strcmp(this.lvlEnrVar,'local') && (this.jumpOrder == 1) && (strcmp(this.enrVar,'w') || strcmp(this.enrVar,'alpha'))
+            elseif strcmp(this.lvlEnrVar,'local') && (this.jumpOrder == 1)
 
                 count = this.ndof + 1;
                 for el = 1:this.nelem
                     if sum(this.IDenr(el,:)) > 0
                         id = find(this.IDenr(el,:)==1);
                         for i = 1:length(id)
-                            this.GLW{el} = [count count+1 count+2 count+3];
+                            this.GLPenr{el} = [count count+1 count+2 count+3];
                             count = count + 4;
                         end
                     end
                 end
 
-            elseif strcmp(this.lvlEnrVar,'local') && (this.jumpOrder == 0) && (strcmp(this.enrVar,'w') || strcmp(this.enrVar,'alpha')) 
+            elseif strcmp(this.lvlEnrVar,'local') && (this.jumpOrder == 0)  
 
                 count = this.ndof + 1;
                 for el = 1:this.nelem
                     if sum(this.IDenr(el,:)) > 0
                         id = find(this.IDenr(el,:)==1);
                         for i = 1:length(id)
-                            this.GLW{el} = [count count+1];
+                            this.GLPenr{el} = [count count+1];
                             count = count + 2;
                         end
                     end
@@ -227,7 +221,7 @@ classdef Model < handle
             end
 
             % Vector with all enrichment dofs
-            this.enrDof     = unique(cell2mat(this.GLW))';
+            this.enrDof     = unique(cell2mat(this.GLPenr))';
             this.enrFreeDof = this.enrDof;
 
             % Number of total dofs
@@ -248,7 +242,7 @@ classdef Model < handle
 
                     elements(el) = RegularElement(...
                         this.type,this.NODE(this.ELEM(el,:),:), this.ELEM(el,:),...
-                        this.anm, this.t, this.matModel, this.mat, this.intOrder,this.GLA(el,:));
+                        this.anm, this.t, this.matModel, this.mat, this.intOrder,this.GLP(el,:));
 
                 elseif sum(this.IDenr(el,:)) == 1
 
@@ -259,33 +253,19 @@ classdef Model < handle
                     if this.jumpOrder == 0
                         fract = Fracture_ConstantJump(this.NODE_D(this.FRACT(id,:),:),...
                             this.FRACT(id,:)+this.nnodes, this.t, this.tractionLaw, this.matfract(id,:), ...
-                            this.GLW{el},this.tractionLawPenal);
+                            this.GLPenr{el});
                     elseif this.jumpOrder == 1
                         fract = Fracture_LinearJump(this.NODE_D(this.FRACT(id,:),:),...
                             this.FRACT(id,:)+this.nnodes, this.t, this.tractionLaw, this.matfract(id,:), ...
-                            this.GLW{el},this.tractionLawPenal);
+                            this.GLPenr{el});
                     end
 
                     % Initialize the enriched elements using:
-                    if strcmp(this.enhancementType,'KOS')
-
-                        % The Kinematically Optimal Symmetric formulation
-                        elements(el) = EnrichedElement_KOS(this.type,...
+                    elements(el) = EnrichedElement(this.type,...
                             this.NODE(this.ELEM(el,:),:), this.ELEM(el,:),...
-                            this.anm,this.t,this.matModel, this.mat, this.intOrder,this.GLA(el,:),...
-                            fract, this.GLW{el},this.subDivInt,...
-                            this.stretch, this.enrVar,this.jumpOrder,this.staticCondensation);
-
-                    elseif strcmp(this.enhancementType,'KSON')
-
-                        % The Kinematically and Statically Optimal Nonsymmetric formulation
-                        elements(el) = EnrichedElement_KSON(this.type,...
-                            this.NODE(this.ELEM(el,:),:), this.ELEM(el,:),...
-                            this.anm,this.t, this.matModel,this.mat, this.intOrder,this.GLA(el,:),...
-                            fract, this.GLW{el},this.subDivInt,...
-                            this.stretch, this.enrVar,this.jumpOrder,this.staticCondensation);
-
-                    end
+                            this.anm,this.t,this.matModel, this.mat, this.intOrder,this.GLP(el,:),...
+                            fract, this.GLPenr{el},this.subDivInt,...
+                            this.jumpOrder,this.staticCondensation);
                 end
                 elements(el).type.initializeIntPoints();
             end
@@ -342,11 +322,11 @@ classdef Model < handle
 
         %------------------------------------------------------------------
         % Global stiffness matrix and internal force vector
-        function [K, Fint] = globalKF(this,dU)   
+        function [H, Qint] = globalHQ(this,dU)   
             
             % Initialize the global stiffness matrix
-            K    = sparse(this.nTotDofs, this.nTotDofs);
-            Fint = zeros(this.nTotDofs, 1);
+            H    = sparse(this.nTotDofs, this.nTotDofs);
+            Qint = zeros(this.nTotDofs, 1);
             
             for el = 1:this.nelem
 
@@ -357,11 +337,11 @@ classdef Model < handle
                 dUe = dU(gle);
             
                 % Get local stiffness matrix
-                [ke,fe] = this.element(el).type.elementKeFint(dUe);
+                [He,qe] = this.element(el).type.elementHeQint(dUe);
             
                 % Assemble
-                K(gle,gle) = K(gle,gle) + ke;
-                Fint(gle) = Fint(gle) + fe;
+                H(gle,gle) = H(gle,gle) + He;
+                Qint(gle)  = Qint(gle) + qe;
                 
             end
         end
@@ -408,9 +388,9 @@ classdef Model < handle
                     for el = 1:this.nelem
                         if sum(this.IDenr(el,:)) > 0
                             if (this.jumpOrder == 0)
-                                fprintf('%2d     %10.3e    %10.3e\n',el,this.U(this.GLW{el}));
+                                fprintf('%2d     %10.3e    %10.3e\n',el,this.U(this.GLPenr{el}));
                             elseif (this.jumpOrder == 1)
-                                fprintf('%2d     %10.3e    %10.3e    %10.3e    %10.3e\n',el,this.U(this.GLW{el}));
+                                fprintf('%2d     %10.3e    %10.3e    %10.3e    %10.3e\n',el,this.U(this.GLPenr{el}));
                             end
                         end
                     end

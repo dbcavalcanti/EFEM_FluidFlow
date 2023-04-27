@@ -17,31 +17,30 @@
 classdef Fracture < handle    
     %% Public attributes
     properties (SetAccess = public, GetAccess = public)
-        shape      = [];            % Object of the Shape class
-        idelem     = 0;             % Identify the element that the fracture belongs
-        node       = [];            % Nodes of the fem mesh
-        connect    = [];            % Nodes connectivity
-        m          = [];            % Tangent orientation vector
-        n          = [];            % Normal orientation vector
-        ld         = 0.0;           % Fracture length
-        Xref       = [];            % Reference point
-        t          = 1.0;           % Thickness
-        matModel   = 'elastic';     % Material model
-        mat        = [];            % Vector with material properties
-        penal      = false;         % Flag for applying a penalization on compression
-        nnd_el     = 2;             % Number of nodes per element
-        ndof_nd    = 2;             % Number of dof per node
-        ndof       = 1;             % Number of dofs
-        glw        = [];            % Vector of the degrees of freedom
-        nIntPoints = 2;             % Number of integration points
-        intPoint   = [];            % Vector with integration point objects
-        result     = [];            % Result object
+        shape      = [];              % Object of the Shape class
+        idelem     = 0;               % Identify the element that the fracture belongs
+        node       = [];              % Nodes of the fem mesh
+        connect    = [];              % Nodes connectivity
+        m          = [];              % Tangent orientation vector
+        n          = [];              % Normal orientation vector
+        ld         = 0.0;             % Fracture length
+        Xref       = [];              % Reference point
+        t          = 1.0;             % Thickness
+        matModel   = 'interfaceFlow'; % Material model
+        mat        = [];              % Vector with material properties
+        nnd_el     = 2;               % Number of nodes per element
+        ndof_nd    = 2;               % Number of dof per node
+        ndof       = 1;               % Number of dofs
+        glw        = [];              % Vector of the degrees of freedom
+        nIntPoints = 2;               % Number of integration points
+        intPoint   = [];              % Vector with integration point objects
+        result     = [];              % Result object
     end
     
     %% Constructor method
     methods
         %------------------------------------------------------------------
-        function this = Fracture(node, elem, t, matModel, mat, glw, penal)
+        function this = Fracture(node, elem, t, matModel, mat, glw)
             if (nargin > 0)
 
                 this.node     = node;
@@ -50,7 +49,6 @@ classdef Fracture < handle
                 this.matModel = matModel;
                 this.mat      = mat;
                 this.glw      = glw;
-                this.penal    = penal;
                 this.ndof     = length(glw);
                 this.shape    = Shape_Bar();
 
@@ -70,7 +68,7 @@ classdef Fracture < handle
         N = interpJumpShapeMtrx(this,xn, enrVar)
         
         % Compute the jump transmission matrix M
-        M = jumpTransmissionMtrx(this,X,enrVar,stretch,nu);
+        M = jumpTransmissionMtrx(this,X);
 
         % Compute the rotation matrix
         R = rotationMtrx(this);
@@ -117,12 +115,8 @@ classdef Fracture < handle
             for i = 1:this.nIntPoints
 
                 % Initialize the constitutive model
-                if strcmp(this.matModel,'elastic')
-                    constModel = MaterialInterface_Elastic(this.mat, this.penal);
-                elseif strcmp(this.matModel,'isotropicDamageLinear')
-                    constModel = MaterialInterface_IsotropicDamage_Linear(this.mat, this.penal);
-                elseif strcmp(this.matModel,'isotropicDamageExponential')
-                    constModel = MaterialInterface_IsotropicDamage_Exponential(this.mat, this.penal);
+                if strcmp(this.matModel,'interfaceFlow')
+                    constModel = MaterialInterface_CubicLaw(this.mat);
                 end
 
                 % Create the integration points
@@ -155,7 +149,7 @@ classdef Fracture < handle
         %   ke : element stiffness matrix
         %   fe : element internal force vector
         %
-        function [ke,fe] = elementKeFint(this,dUe,enrVar)
+        function [Hfl,Hft,Hftt,Hftb] = elementFluidFlowMtrcs(this,dUe,enrVar)
 
             % Initialize the element stiffness matrix and internal force
             % vector
@@ -187,8 +181,9 @@ classdef Fracture < handle
         
                 % Numerical integration of the stiffness matrix and the
                 % internal force vector
-                ke = ke + N' * T  * N * c;
-                fe = fe + N' * td * c;
+                Hft  = Hft  + N' * (ct + cb)  * N * c;
+                Hftt = Hftt + N' * ct  * N * c;
+                Hftb = Hftb + N' * cb  * N * c;
 
             end
 

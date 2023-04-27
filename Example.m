@@ -1,19 +1,8 @@
-%% ==================== EMBEDDED FINITE ELEMENT ===========================
+%% ================ FLUID FLOW EMBEDDED FINITE ELEMENT ====================
 %
-% This script consists in the example presented in the paper by
-% Dias-da-Costa et al. (2009), in the section 4.5.1.
-% This example simulates a rigid body motion crack opening. The crack is
-% parallel to the element border and a mode I is induced.
-%
-%
-% Reference:
-% DIAS DA COSTA, D.; ALFAIATE, J.; SLUYS, L. J.; JÚLIO, E. Towards a
-% generalization of a discrete strong discontinuity approach. Computer 
-% Methods in Applied Mechanics and Engineering, v. 198, n. 47-48, 
-% p. 3670–3681, oct 2009.
 % Author: Danilo Cavalcanti
 %
-% Date: January, 27th, 2023.
+% Date: April 27th, 2023.
 %
 %% ========================================================================
 %
@@ -49,51 +38,45 @@ FRACT = [1 2];
 
 % --- Material properties of the domain -----------------------------------
 
-% Define the material model of the continuum: 'elastic'
-matModel = 'elastic';
+% Define the material model of the continuum: 'saturated'
+matModel = 'saturated';
 
 % Material parameters
-E   = 1.0e8;      % Young's modulus (MPa)
-nu  = 0.0;        % Poisson's ratio
-mat = [E  nu];    % Material parameters vector
+K   = 1.0e8;      % Hydraulic permeability (m/s)
+mu  = 0.0;        % Fluid dynamic viscosity (kPa*s)
+mat = [K  mu];    % Material parameters vector
 
 % --- Material properties of the fracture ---------------------------------
 
-% Define the traction constitutive law: 'elastic', 'isotropicDamageLinear',
-%                                       'isotropicDamageExponential'
-tractionLaw = 'elastic';  
+% Define the traction constitutive law: 'interfaceFlow'
 
-% Flag to apply a penalization on compression 
-tractionLawPenal = true;
+tractionLaw = 'interfaceFlow';  
 
 % Values of the material constitutive model parameters
-kn   = 1.0e0;            % Normal stiffness (MPa/mm)
-ks   = 1.0e0;            % Shear stiffness (MPa/mm)
-ft   = 0.5;              % Tensile strength
-Gf   = 1.0;              % Fracture energy
-beta = 0.0;              % Shear factor
+ct   = 1.0e0;            % Leakoff at the top
+cb   = 1.0e0;            % Leakoff at the bottom
+w    = 0.5;              % Initial aperture
 
 % Assemble the vector with the material properties
-matfract = [ks, kn, ft, Gf, beta];
+matfract = [w, mu, ct, cb];
 
 % --- Analysis model ------------------------------------------------------
 
-% Type of analysis: 'PlaneStress' or 'PlaneStrain'
-anm = 'PlaneStress';
+% Type of analysis: 'Hydro'
+anm = 'Hydro';
 
 % --- Boundary conditions --------------------------------------------------
 
 % Define supports
-SUPP = zeros(size(NODE,1),2);
-SUPP([1 2 4],:) = [1 1;0 1;1 0];
-% SUPP([1 2],:) = [1 1;0 1];
+SUPP = zeros(size(NODE,1),1);
+SUPP([1 2 3 4],:) = [1; 1; 1; 1];
 
 % Define prescribe displacements
-PRESCDISPL = zeros(size(NODE,1),2);
+PRESCDISPL = zeros(size(NODE,1),1);
+PRESCDISPL([1 2 3 4]) = [100;100;0;0];
 
 % Define the load conditions
-LOAD = zeros(size(NODE,1),2);
-LOAD([3 4],:) = [0.0 1.0;0.0 1.0]; 
+LOAD = zeros(size(NODE,1),1);
 
 % --- Order of the integration rule for the domain ------------------------
 
@@ -102,27 +85,17 @@ intOrder = 2;
 
 %% ===================== EFEM FORMULATION SETUP ===========================
 
-% Type of formulation
-enhancementType = 'KOS';
-
 % Apply a sub-division of the domain to perform the numerical integration
 subDivInt = false;
-
-% Consider the stretch part of the mapping matrix
-stretch = [false, false];
 
 % Order of the interpolation of the jump displacement field
 jumpOrder = 1;
 
-% Enrichment degree of freedom ('w' or 'alpha')
-enrVar = 'w';
-
 % Level of the enrichment dof ('local' or 'global')
-lvlEnrVar = 'local';
+lvlEnrVar = 'global';
 
 % Static condensation
-staticCondensation = true;
-% staticCondensation = false;
+staticCondensation = false;
 
 %% ========================= PRE-PROCESSING ===============================
 
@@ -133,9 +106,9 @@ IDenr = 1;
 
 % Create the model object
 mdl = Model(NODE, ELEM, NODE_D, FRACT, t, matModel, mat, tractionLaw, ...
-            tractionLawPenal, matfract, anm, type, SUPP, LOAD, ...
-            PRESCDISPL, intOrder, enhancementType, subDivInt, stretch, ...
-            enrVar, jumpOrder, lvlEnrVar, staticCondensation, IDenr);
+            matfract, anm, type, SUPP, LOAD, ...
+            PRESCDISPL, intOrder, subDivInt,...
+            jumpOrder, lvlEnrVar, staticCondensation, IDenr);
 
 % Perform the basic pre-computations associated to the model (dof
 % definition, etc.)
@@ -146,13 +119,13 @@ mdl.plotMeshWithBC();
 
 % Create the result object for the analysis
 ndPlot  = 3;
-dofPlot = 2; % 1 for X and 2 for Y
+dofPlot = 1; % 1 for X and 2 for Y
 result  = ResultAnalysis(mdl.ID(ndPlot,dofPlot));
 
 %% ========================== RUN ANALYSIS ================================
 
 % Solve the structural analysis problem
-anl = Anl_Nonlinear(result);
+anl = Anl_Linear(result);
 anl.process(mdl);
 
 %% ========================= CHECK THE RESULTS ============================

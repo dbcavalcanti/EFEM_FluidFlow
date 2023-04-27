@@ -25,7 +25,7 @@ classdef Anl_Linear < Anl
 
             % Compute the global stiffness matrix
 %             U0 = mdl.U;       % To check the computation of the stresses
-            [K,~] = mdl.globalKF(mdl.U); 
+            [K,~] = mdl.globalHQ(mdl.U); 
 
             % Add contribution of the nodal forces to the external force
             % vector

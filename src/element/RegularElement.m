@@ -17,20 +17,20 @@
 classdef RegularElement < handle    
     %% Public attributes
     properties (SetAccess = public, GetAccess = public)
-        type       = 'ISOQ4';      % type of element
+        type       = 'ISOQ4';       % type of element
         shape      = [];            % Object of the Shape class
         node       = [];            % Nodes of the fem mesh
         connect    = [];            % Nodes connectivity
-        anm        = 'PlaneStress'; % Analysis model
+        anm        = 'Hydro';       % Analysis model
         t          = 1.0;           % Thickness
         matModel   = 'elastic';     % Material model
         mat        = [];            % Vector with material properties
         intOrder   = 2;             % Order of the numerical integration
         nnd_el     = 4;             % Number of nodes per element
-        ndof_nd    = 2;             % Number of dof per node
-        gla        = [];            % Vector of the regular degrees of freedom
+        ndof_nd    = 1;             % Number of dof per node
+        glp        = [];            % Vector of the regular degrees of freedom
         gle        = [];            % Vector of the degrees of freedom
-        ngla       = 0;             % Number of regular dof
+        nglp       = 0;             % Number of regular dof
         ngle       = 0;             % Number of total dof
         ue         = [];            % Element's displacement vector
         nIntPoints = 1;             % Number of integration points
@@ -42,7 +42,7 @@ classdef RegularElement < handle
     methods
         %------------------------------------------------------------------
         function this = RegularElement(type, node, elem, anm, t, ...
-                matModel, mat, intOrder, gla)
+                matModel, mat, intOrder, glp)
             if (nargin > 0)
                 if strcmp(type,'ISOQ4')
                     this.shape = Shape_ISOQ4();
@@ -61,9 +61,9 @@ classdef RegularElement < handle
                 this.mat      = mat;
                 this.anm      = anm;
                 this.intOrder = intOrder;
-                this.gla      = gla;
-                this.ngla     = length(this.gla);
-                this.gle      = gla;
+                this.glp      = glp;
+                this.nglp     = length(this.glp);
+                this.gle      = glp;
                 this.ngle     = length(this.gle);
                 this.result   = Result(this.node,1:length(this.connect),0.0*ones(this.nnd_el,1),'Model');
             end
@@ -83,8 +83,8 @@ classdef RegularElement < handle
             % Initialize the integration points objects
             intPts(this.nIntPoints,1) = IntPoint();
             for i = 1:this.nIntPoints
-                if strcmp(this.matModel,'elastic')
-                    constModel = Material_Elastic(this.mat, this.anm);
+                if strcmp(this.matModel,'saturated')
+                    constModel = Material_Saturated(this.mat, this.anm);
                 end
                 intPts(i) = IntPoint(X(:,i),w(i),this.anm, constModel);
             end
@@ -93,23 +93,21 @@ classdef RegularElement < handle
         end
 
         %------------------------------------------------------------------
-        % This function assembles the element stiffness matrix and internal
-        % force vector
+        % This function assembles the element fluid-flow matrix
         % 
         % Input:
-        %   dUe: vector with increment of the nodal displacement vector
-        %        associated with the element
+        %   dPe: vector with increment of the nodal pressure vector
         %
         % Output:
-        %   ke : element stiffness matrix
-        %   fe : element internal force vector
+        %   He : element fluid-flow matrix
+        %   qe : element discharge vector
         %
-        function [ke,fe] = elementKeFint(this,dUe)
+        function [He,qe] = elementHeQint(this,dPe)
 
-            % Initialize the element stiffness matrix and internal force
-            % vector
-            ke = zeros(this.ndof_nd*this.nnd_el);
-            fe = zeros(this.ndof_nd*this.nnd_el,1);
+            % Initialize the element fluid-flow matrix and internal
+            % discharge vector
+            He = zeros(this.ndof_nd*this.nnd_el);
+            qe = zeros(this.ndof_nd*this.nnd_el,1);
             
             % Numerical integration of the stiffness matrix and internal
             % force vector
@@ -119,7 +117,7 @@ classdef RegularElement < handle
                 [B,detJ] = this.shape.BMatrix(this.node,this.intPoint(i).X);
 
                 % Compute the increment of the strain vector
-                dStrain = B*dUe;
+                dStrain = B*dPe;
         
                 % Compute the stress vector and the constitutive matrix
                 [stress,D] = this.intPoint(i).constitutiveModel(dStrain);
@@ -127,10 +125,10 @@ classdef RegularElement < handle
                 % Numerical integration term
                 c = this.intPoint(i).w * detJ * this.t;
         
-                % Numerical integration of the stiffness matrix and the
-                % internal force vector
-                ke = ke + B' * D * B  * c;
-                fe = fe + B' * stress * c;
+                % Numerical integration of the fluid-flow matrix and the
+                % internal discharge vector
+                He = He + B' * D * B  * c;
+                qe = qe + B' * stress * c;
 
             end
             

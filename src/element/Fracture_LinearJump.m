@@ -12,8 +12,8 @@
 classdef Fracture_LinearJump < Fracture
     %% Constructor method
     methods
-        function this = Fracture_LinearJump(node, elem, t, matModel, mat, glw, penal)
-            this = this@Fracture(node, elem, t, matModel, mat, glw, penal);
+        function this = Fracture_LinearJump(node, elem, t, matModel, mat, glw)
+            this = this@Fracture(node, elem, t, matModel, mat, glw);
         end
     end
     %% Public methods
@@ -51,34 +51,19 @@ classdef Fracture_LinearJump < Fracture
         % Compute the jump transmission matrix M. This matrix relates the
         % enrichment degrees of freedom alpha with the enhanced
         % displacement field.
-        function M = jumpTransmissionMtrx(this,X,enrVar,stretch,nu)
+        function M = jumpTransmissionMtrx(this,X)
 
-            % Initialize the mapping matrix (2D)
-            M = zeros(2,4);
+            % Fracture geometric properties
+            m    = this.m;
+            ld   = this.ld;
+            Xref = this.Xref;
 
-            % Add the translation transmission
-            M = this.addTranslationMtrx(M);
+            % Relative position vector
+            DX = X - Xref;
 
-            % Add the relative rigid-body rotation transmission
-            M = this.addRelativeRotationMtrx(X,M);
-
-            % Add the stretching along the tangential direction
-            % transmission
-            if stretch(1) == true
-                M = this.addStretchingMtrx(X,M);
-    
-                % Add the stretching along the normal direction due to the
-                % Poisson effect transmission
-                if stretch(2) == true
-                    M = this.addPoissonEffectMtrx(X,M,nu);
-                end
-            end
-
-            % Transform the enrichment variables from alpha to w
-            if strcmp(enrVar,'w')
-                Se = this.transformAlphaToW();
-                M  = M*Se;
-            end
+            % Mapping matrix (2D)
+            M = [0.5  0.5];
+            M = M + [-m*DX'/ld , m*DX'/ld];
 
         end
 

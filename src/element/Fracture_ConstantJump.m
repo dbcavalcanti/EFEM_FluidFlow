@@ -12,8 +12,8 @@
 classdef Fracture_ConstantJump < Fracture
     %% Constructor method
     methods
-        function this = Fracture_ConstantJump(node, elem, t, matModel, mat, glw, penal)
-            this = this@Fracture(node, elem, t, matModel, mat, glw, penal);
+        function this = Fracture_ConstantJump(node, elem, t, matModel, mat, glw)
+            this = this@Fracture(node, elem, t, matModel, mat, glw);
         end
     end
     %% Public methods
@@ -36,7 +36,7 @@ classdef Fracture_ConstantJump < Fracture
         % Compute the jump transmission matrix M. This matrix relates the
         % enrichment degrees of freedom alpha with the enhanced
         % displacement field.
-        function M = jumpTransmissionMtrx(~,~,~,~,~)
+        function M = jumpTransmissionMtrx(~,~)
 
             M = [ 1.0  0.0;
                   0.0  1.0 ];

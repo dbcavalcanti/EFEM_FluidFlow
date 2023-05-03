@@ -30,8 +30,8 @@ t = 1.0;
 % --- Mesh of the fracture elements ---------------------------------------
 
 % Coordinates of the nodes that define the discontinuities (mm)
-NODE_D = [0.0  1.0;
-          2.0  1.0];
+NODE_D = [0.0  1.5;
+          2.0  1.5];
 
 % Fractures definition (by segments)
 FRACT = [1 2];
@@ -42,8 +42,8 @@ FRACT = [1 2];
 matModel = 'saturated';
 
 % Material parameters
-K   = 1.0e8;      % Hydraulic permeability (m/s)
-mu  = 0.0;        % Fluid dynamic viscosity (kPa*s)
+K   = 1.0;        % Hydraulic permeability (m/s)
+mu  = 1.0e-3;     % Fluid dynamic viscosity (Pa*s)
 mat = [K  mu];    % Material parameters vector
 
 % --- Material properties of the fracture ---------------------------------
@@ -53,9 +53,9 @@ mat = [K  mu];    % Material parameters vector
 tractionLaw = 'interfaceFlow';  
 
 % Values of the material constitutive model parameters
-ct   = 1.0e0;            % Leakoff at the top
-cb   = 1.0e0;            % Leakoff at the bottom
-w    = 0.5;              % Initial aperture
+ct   = 100;            % Leakoff at the top
+cb   = 100;            % Leakoff at the bottom
+w    = 0.00;              % Initial aperture
 
 % Assemble the vector with the material properties
 matfract = [w, mu, ct, cb];
@@ -86,7 +86,7 @@ intOrder = 2;
 %% ===================== EFEM FORMULATION SETUP ===========================
 
 % Apply a sub-division of the domain to perform the numerical integration
-subDivInt = false;
+subDivInt = true;
 
 % Order of the interpolation of the jump displacement field
 jumpOrder = 1;

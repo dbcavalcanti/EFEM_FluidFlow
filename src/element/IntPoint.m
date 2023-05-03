@@ -86,11 +86,16 @@ classdef IntPoint < handle
             this.statevarOld = this.statevar;
         end
 
-
         %------------------------------------------------------------------
         %  Get the current constitutive matrix
         function D = getConstitutiveMtrx(this,dStrain)
             D = this.constitutiveMdl.constitutiveMtrx(dStrain,this);
+        end
+
+        %------------------------------------------------------------------
+        %  Get the current permeability matrix
+        function K = getPermeabilityMtrx(this,dStrain)
+            K = this.constitutiveMdl.permeabilityMtrx(dStrain,this);
         end
 
         %------------------------------------------------------------------

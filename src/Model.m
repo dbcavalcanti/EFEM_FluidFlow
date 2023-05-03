@@ -325,7 +325,7 @@ classdef Model < handle
         function [H, Qint] = globalHQ(this,dU)   
             
             % Initialize the global stiffness matrix
-            H    = sparse(this.nTotDofs, this.nTotDofs);
+            H    = zeros(this.nTotDofs, this.nTotDofs);
             Qint = zeros(this.nTotDofs, 1);
             
             for el = 1:this.nelem
@@ -359,38 +359,29 @@ classdef Model < handle
         % Print the nodal displacements
         function printResults(this)
             fprintf('******** NODAL DISPLACEMENTS ********\n');
-            fprintf('\nNode       DX            DY\n');
+            fprintf('\nNode       P\n');
             for nd = 1:this.nnodes
-                fprintf('%2d     %10.3e    %10.3e\n',nd,...
-                    this.U(this.ID(nd,1)),this.U(this.ID(nd,2)));
+                fprintf('%2d     %10.3e\n',nd,this.U(this.ID(nd)));
             end
 
 
             if ~isempty(this.enrDof)
                 fprintf('\n******** ELEMENT ENRICHMENT *********\n');
-                fprintf('\n\tFormulation:                 %s',  this.enhancementType);
-                fprintf('\n\tEnrichment variable:         %s',  this.enrVar);
                 fprintf('\n\tLevel of enrichment:         %s',  this.lvlEnrVar);
                 fprintf('\n\tJump interpolation order:    %d',  this.jumpOrder);
-                fprintf('\n\tConsider tangential stretch: %s',  mat2str(this.stretch(1)));
-                fprintf('\n\tConsider normal stretch:     %s',  mat2str(this.stretch(2)));
                 fprintf('\n\tApply static condensation:   %s\n',mat2str(this.staticCondensation));
-                if (this.jumpOrder == 1) && strcmp(this.enrVar,'w')
-                    fprintf('\nEl        wx1            wy1           wx2           wy2\n');
-                elseif (this.jumpOrder == 1) && strcmp(this.enrVar,'alpha')
-                    fprintf('\nEl        ax1            ay1           ax2           ay2\n');
-                elseif (this.jumpOrder == 0) && strcmp(this.enrVar,'w')
-                    fprintf('\nEl        wx1            wy1\n');
-                elseif (this.jumpOrder == 0) && strcmp(this.enrVar,'alpha')
-                    fprintf('\nEl        ax1            ay1\n');
+                if (this.jumpOrder == 1)
+                    fprintf('\nEl        dp1            dp2        pf1            pf2\n');
+                elseif (this.jumpOrder == 0)
+                    fprintf('\nEl        dp\n');
                 end
                 if this.staticCondensation == false
                     for el = 1:this.nelem
                         if sum(this.IDenr(el,:)) > 0
                             if (this.jumpOrder == 0)
-                                fprintf('%2d     %10.3e    %10.3e\n',el,this.U(this.GLPenr{el}));
+                                fprintf('%2d     %10.3e     %10.3e\n',el,this.U(this.GLPenr{el}));
                             elseif (this.jumpOrder == 1)
-                                fprintf('%2d     %10.3e    %10.3e    %10.3e    %10.3e\n',el,this.U(this.GLPenr{el}));
+                                fprintf('%2d     %10.3e    %10.3e     %10.3e    %10.3e\n',el,this.U(this.GLPenr{el}));
                             end
                         end
                     end
@@ -399,9 +390,9 @@ classdef Model < handle
                         if sum(this.IDenr(el,:)) > 0
                             we = this.element(el).type.getEnrichmentDofs();
                             if (this.jumpOrder == 0)
-                                fprintf('%2d     %10.3e    %10.3e\n',el,we);
+                                fprintf('%2d     %10.3e     %10.3e\n',el,we);
                             elseif (this.jumpOrder == 1)
-                                fprintf('%2d     %10.3e    %10.3e    %10.3e    %10.3e\n',el, we);
+                                fprintf('%2d     %10.3e    %10.3e     %10.3e    %10.3e\n',el, we);
                             end
                         end
                     end
@@ -420,9 +411,11 @@ classdef Model < handle
         % Plot the deformed mesh
         function plotDeformedMesh(this)
 
-            this.updateResultVertices('Deformed');
+            %this.updateResultVertices('Deformed');
+            this.updateResultVertexData('Pressure')
             EFEMdraw = EFEMDraw(this);
             EFEMdraw.mesh();
+            colorbar
 
         end
 
@@ -485,6 +478,9 @@ classdef Model < handle
                     X = this.element(el).type.result.vertices(i,:);
                     if strcmp(type,'Model')
                         vertexData(i) = 0.0;
+                    elseif strcmp(type,'Pressure')
+                        p = this.element(el).type.pressureField(X);
+                        vertexData(i) = p;
                     elseif strcmp(type,'Ux')
                         u = this.element(el).type.displacementField(X);
                         vertexData(i) = u(1);

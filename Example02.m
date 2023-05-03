@@ -1,8 +1,8 @@
-%% ==================== EMBEDDED FINITE ELEMENT ===========================
+%% ================ FLUID FLOW EMBEDDED FINITE ELEMENT ====================
 %
 % Author: Danilo Cavalcanti
 %
-% Date: April, 4th, 2023.
+% Date: April 27th, 2023.
 %
 %% ========================================================================
 %
@@ -31,7 +31,7 @@ t = 1.0;
 
 % Coordinates of the nodes that define the discontinuities (mm)
 NODE_D = [0.0  1.0;
-          1.0  1.0];
+          2.0  1.5];
 
 % Fractures definition (by segments)
 FRACT = [1 2];
@@ -42,8 +42,8 @@ FRACT = [1 2];
 matModel = 'saturated';
 
 % Material parameters
-K   = 1.0e8;      % Hydraulic permeability (m/s)
-mu  = 0.0;        % Fluid dynamic viscosity (kPa*s)
+K   = 1.0;        % Hydraulic permeability (m/s)
+mu  = 1.0e-3;     % Fluid dynamic viscosity (Pa*s)
 mat = [K  mu];    % Material parameters vector
 
 % --- Material properties of the fracture ---------------------------------
@@ -52,21 +52,18 @@ mat = [K  mu];    % Material parameters vector
 
 tractionLaw = 'interfaceFlow';  
 
-% Flag to apply a penalization on compression 
-tractionLawPenal = true;
-
 % Values of the material constitutive model parameters
-ct   = 1.0e0;            % Normal stiffness (MPa/mm)
-cb   = 1.0e0;            % Shear stiffness (MPa/mm)
-w    = 0.5;              % Tensile strength
+ct   = 10000;            % Leakoff at the top
+cb   = 10000;            % Leakoff at the bottom
+w    = 0.00;              % Initial aperture
 
 % Assemble the vector with the material properties
 matfract = [w, mu, ct, cb];
 
 % --- Analysis model ------------------------------------------------------
 
-% Type of analysis: 'PlaneStress' or 'PlaneStrain'
-anm = 'PlaneStress';
+% Type of analysis: 'Hydro'
+anm = 'Hydro';
 
 % --- Boundary conditions --------------------------------------------------
 
@@ -76,7 +73,7 @@ SUPP([1 2 3 4],:) = [1; 1; 1; 1];
 
 % Define prescribe displacements
 PRESCDISPL = zeros(size(NODE,1),1);
-PRESCDISPL([1 2 3 4]) = [100;100;0;0];
+PRESCDISPL([1 2 3 4]) = [100;80;20;30];
 
 % Define the load conditions
 LOAD = zeros(size(NODE,1),1);
@@ -89,16 +86,10 @@ intOrder = 2;
 %% ===================== EFEM FORMULATION SETUP ===========================
 
 % Apply a sub-division of the domain to perform the numerical integration
-subDivInt = false;
-
-% Consider the stretch part of the mapping matrix
-stretch = [false, false];
+subDivInt = true;
 
 % Order of the interpolation of the jump displacement field
 jumpOrder = 1;
-
-% Enrichment degree of freedom ('w' or 'alpha')
-enrVar = 'w';
 
 % Level of the enrichment dof ('local' or 'global')
 lvlEnrVar = 'global';
@@ -115,9 +106,9 @@ IDenr = 1;
 
 % Create the model object
 mdl = Model(NODE, ELEM, NODE_D, FRACT, t, matModel, mat, tractionLaw, ...
-            tractionLawPenal, matfract, anm, type, SUPP, LOAD, ...
-            PRESCDISPL, intOrder,'', subDivInt, stretch, ...
-            enrVar, jumpOrder, lvlEnrVar, staticCondensation, IDenr);
+            matfract, anm, type, SUPP, LOAD, ...
+            PRESCDISPL, intOrder, subDivInt,...
+            jumpOrder, lvlEnrVar, staticCondensation, IDenr);
 
 % Perform the basic pre-computations associated to the model (dof
 % definition, etc.)
@@ -128,7 +119,7 @@ mdl.plotMeshWithBC();
 
 % Create the result object for the analysis
 ndPlot  = 3;
-dofPlot = 2; % 1 for X and 2 for Y
+dofPlot = 1; % 1 for X and 2 for Y
 result  = ResultAnalysis(mdl.ID(ndPlot,dofPlot));
 
 %% ========================== RUN ANALYSIS ================================

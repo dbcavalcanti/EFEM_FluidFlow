@@ -84,7 +84,7 @@ classdef RegularElement < handle
             intPts(this.nIntPoints,1) = IntPoint();
             for i = 1:this.nIntPoints
                 if strcmp(this.matModel,'saturated')
-                    constModel = Material_Saturated(this.mat, this.anm);
+                    constModel = MaterialHydro_Saturated(this.mat, this.anm);
                 end
                 intPts(i) = IntPoint(X(:,i),w(i),this.anm, constModel);
             end
@@ -120,15 +120,14 @@ classdef RegularElement < handle
                 dStrain = B*dPe;
         
                 % Compute the stress vector and the constitutive matrix
-                [stress,D] = this.intPoint(i).constitutiveModel(dStrain);
+                K = this.intPoint(i).getPermeabilityMtrx(dStrain);
         
                 % Numerical integration term
                 c = this.intPoint(i).w * detJ * this.t;
         
                 % Numerical integration of the fluid-flow matrix and the
                 % internal discharge vector
-                He = He + B' * D * B  * c;
-                qe = qe + B' * stress * c;
+                He = He + B' * K * B  * c;
 
             end
             

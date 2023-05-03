@@ -22,9 +22,8 @@ classdef Fracture_LinearJump < Fracture
 
         %------------------------------------------------------------------
         % This function computes the matrix of the shape function
-        % to evaluate the displacement jump based on the enrichment degrees
-        % of freedom 'alpha'.
-        function N = interpJumpShapeMtrx(this,xn,enrVar)
+        % to evaluate the pressure field along the discontinuity
+        function N = shapeFncMtrx(this,xn)
 
             % Cartesian coordinates of the given point
             X = this.shape.coordNaturalToCartesian(this.node,xn);
@@ -32,18 +31,24 @@ classdef Fracture_LinearJump < Fracture
             % Relative position vector
             DX = X - this.Xref;
 
-            % Tangential coordinate
+            % Normalized tangential coordinate
             s = this.m*DX';
 
-            % Shape function matrix
-            N = [ 1.0  0.0   s   0.0;
-                  0.0  1.0  0.0   s ];
+            % Length of the discontinuity
+            ld = this.ld;
 
-            % Transform the enrichment variables from alpha to w
-            if strcmp(enrVar,'w')
-                Se = this.transformAlphaToW();
-                N  = N*Se;
-            end
+            % Shape function matrix
+            N = [0.5-s/ld, 0.5+s/ld];
+
+        end
+
+        %------------------------------------------------------------------
+        % This function computes the matrix of the derivatives of the shape
+        % functions with respect to the tangential coordinate s
+        function dNds = gradShapeFncMtrx(this,~)
+
+            % Gradient of the shape function matrix
+            dNds = [-1, 1]/this.ld;
 
         end
 

@@ -49,6 +49,25 @@ classdef EnrichedElement < RegularElement
     methods
 
         %------------------------------------------------------------------
+        % Initialize the elements integration points
+        function initializeIntPoints(this)
+
+            % Get integration points coordinates and weights
+            [X,w,this.nIntPoints] = this.shape.getIntegrationPoints(this.intOrder,this);
+
+            % Initialize the integration points objects
+            intPts(this.nIntPoints,1) = IntPoint();
+            for i = 1:this.nIntPoints
+                if strcmp(this.matModel,'saturated')
+                    constModel = MaterialHydro_Saturated(this.mat, this.anm);
+                end
+                intPts(i) = IntPoint(X(:,i),w(i),this.anm, constModel);
+            end
+            this.intPoint = intPts;
+
+        end
+
+        %------------------------------------------------------------------
         % This function assembles the element fluid-flow matrix and 
         % internal discharge vector
         % 
@@ -64,11 +83,11 @@ classdef EnrichedElement < RegularElement
         %
         function [He,qe] = elementHeQint(this, dPe)
 
-            % Initialize the element's stiffness matrix
-            Hpp = zeros(this.nglp,      this.nglp);
-            Hpa = zeros(this.nglp,      this.nglpenr/2);
-            Hap = zeros(this.nglpenr/2, this.nglp);
-            Haa = zeros(this.nglpenr/2, this.nglpenr/2);
+            % Initialize the element fluid-flow submatrices
+            Hpp = zeros(this.nglp, this.nglp);
+            Hpa = zeros(this.nglp, this.nglp);
+            Hap = zeros(this.nglp, this.nglp);
+            Haa = zeros(this.nglp, this.nglp);
 
             % Initialize the internal force sub-vectors
             qp = zeros(this.nglp, 1);
@@ -86,11 +105,11 @@ classdef EnrichedElement < RegularElement
                 % Compute the enriched B-matrix
                 Benr = this.enhancedKinematicCompatibilityMtrx(B,this.intPoint(i).X);
         
-                % Compute the increment of the strain vector
-                dStrain = B*dPe(1:this.nglp);% + Benr*dPeEnr;
+                % Compute the increment of the pressure gradient
+                dgradP = B*dPe(1:this.nglp);% + Benr*dPeEnr;
         
                 % Compute the stress vector and the constitutive matrix
-                [stress,K] = this.intPoint(i).constitutiveModel(dStrain);
+                K = this.intPoint(i).getPermeabilityMtrx(dgradP);
         
                 % Numerical integration coefficient
                 c = this.intPoint(i).w * detJ * this.t;
@@ -102,17 +121,23 @@ classdef EnrichedElement < RegularElement
                 Haa = Haa + Benr'* K * Benr * c;
 
                 % Numerical integration of the internal force sub-vectors
-                qp = qp + B'    * stress * c;
-                qa = qa + Benr' * stress * c;
+%                 qp = qp + B'    * stress * c;
+%                 qa = qa + Benr' * stress * c;
 
             end
 
+            % Porous-media fluid flow matrix
+            H = [Hpp, Hpa;
+                 Hap, Haa];
+
             % Get the discontinuity stiffness matrix and internal force
             % vector
-            [Hfl,Hft,Hftt,Hftb] = this.fracture.elementFluidFlowMtrcs(dPeEnr,this.enrVar);
+            [L1, L2, L3, Hf] = this.fracture.elementFluidFlowMtrcs(dPeEnr,this);
 
             % Assemble the element fluid flow matrix
-            [He,qe] = this.assembleElemHeQe(Hpp,Hpa,Hap,Haa,Hfl,Hft,Hftt,Hftb,qp,qa);
+            [He,~] = this.assembleElemHeQe(H, L1, L2, L3, Hf,qp,qa);
+
+            qe = zeros(this.nglp+this.nglpenr, 1);
             
         end
 
@@ -121,7 +146,7 @@ classdef EnrichedElement < RegularElement
         % force vector.
         % The assembly is based on the flag to apply a static condensation
         % or not.
-        function [He,qe] = assembleElemHeQe(this,Hpp,Hpa,Hap,Haa,Hfl,Hft,Hftt,Hftb,fp,fa)
+        function [He,qe] = assembleElemHeQe(this,H, L1, L2, L3, Hf, fp,fa)
 
             if this.staticCondensation == true
 
@@ -130,18 +155,29 @@ classdef EnrichedElement < RegularElement
 
             else
 
-                % Auxialiary matrices
-                Hfp = - (Hftt + Hftb)*Tp;
-                Hfa = -(Hftt*Tat + Hftb*Tab)*T;
-                Hff = Hfl + Hft;
-                Hpf = zeros();
-                Haf = zeros();
+                % Add the transversal flow contribution coupling
+                H  = H  + L1;   % to the porous-media matrix
+                Hf = Hf + L3;   % to the discontinuity matrix
 
-                He = [Hpp, Hpa, Hpf;
-                      Hap, Haa, Haf;
-                      Hfp, Hfa, Hff];
+                % Compute the mapping matrix
+                T = this.elementMappingMtrx();
 
-                qe = [fp;fa;ff];
+                % Compute the rotation matrix to change the enrichment dofs
+                R = [eye(this.nglp,this.nglp)  , zeros(this.nglp,this.nglpenr/2);
+                     zeros(this.nglp,this.nglp),   T];
+
+                % Apply the rotation matrix to the fluid flow matrix
+                % associated to the porous-media dofs
+                H = R'*H*R;
+
+                % Rotate the coupling matrix L2
+                L2 = R'*L2;
+
+                % Assemble 
+                He = [  H , -L2;
+                      -L2', (Hf+L3)];
+
+                qe = [];
 
             end
         end
@@ -268,6 +304,54 @@ classdef EnrichedElement < RegularElement
         end
 
         % -----------------------------------------------------------------
+        % Compute the enhanced shape function matrix 
+        function Nenr = enhancedShapeFncMtrx(this, N, Xn)
+
+            % Integration point in the cartesian coordinates
+            X = this.shape.coordNaturalToCartesian(this.node, Xn);
+
+            % Evaluate the Heaviside function at the point X
+            h = this.heavisideFnc(X);
+
+            % Compute the Heaviside matrix
+            Hd = this.heavisideMtrx();
+
+            % Identity matrix
+            I = eye(size(Hd,1));
+
+            % Compute the enhanced shape function matrix
+            Nenr = N*(h*I - Hd);
+
+        end
+
+        % -----------------------------------------------------------------
+        % Compute the enhanced shape function matrix at the region Omega^+
+        function Nenr = topEnhancedShapeFncMtrx(this, N)
+
+            % Compute the Heaviside matrix
+            Hd = this.heavisideMtrx();
+
+            % Identity matrix
+            I = eye(size(Hd,1));
+
+            % Compute the enhanced shape function matrix
+            Nenr = N*(I - Hd);
+
+        end
+
+        % -----------------------------------------------------------------
+        % Compute the enhanced shape function matrix at the region Omega^-
+        function Nenr = bottomEnhancedShapeFncMtrx(this, N)
+
+            % Compute the Heaviside matrix
+            Hd = this.heavisideMtrx();
+
+            % Compute the enhanced shape function matrix
+            Nenr = -(N*Hd);
+
+        end
+
+        % -----------------------------------------------------------------
         % Compute the matrix that discretizes the real/virtual bounded 
         % enhanced strain field based on the enhancement part of the 
         % displacement field. This matrix is used in the KOS and the KSON 
@@ -283,14 +367,11 @@ classdef EnrichedElement < RegularElement
             % Compute the Heaviside matrix
             Hd = this.heavisideMtrx();
 
-            % Compute the mapping matrix
-            M = this.elementMappingMtrx();
-
             % Identity matrix
             I = eye(size(Hd,1));
 
             % Compute the matrix Gr
-            Benr = B*(h*I - Hd)*M;
+            Benr = B*(h*I - Hd);
 
         end
 
@@ -314,6 +395,36 @@ classdef EnrichedElement < RegularElement
                 % Assemble the element mapping matrix
                 Me(i,:) = Mi;
             end
+
+        end
+
+        % -----------------------------------------------------------------
+        % Mapping matrix associated to a element. This matrix is
+        % constructed by stacking by rows the mapping matrices evaluated at
+        % the element's nodes.
+        function [Tp, Tat, Tab] = getTransmissionMtrcs(this)
+
+            % Get the nodes of the discontinuity
+            nd = this.fracture.node;
+
+            % Get the natural coordinates of the nodes of the discontinuity
+            Xn1 = this.shape.coordCartesianToNatural(this.node,nd(1,:));
+            Xn2 = this.shape.coordCartesianToNatural(this.node,nd(2,:));
+
+            % Compute the Heaviside matrix
+            Hd = this.heavisideMtrx();
+
+            % Auxiliary identity matrix
+            Id = eye(size(Hd));
+
+            % Compute the shape function matrices at the two nodes
+            Nm1 = this.shape.shapeFncMtrx(Xn1);
+            Nm2 = this.shape.shapeFncMtrx(Xn2);
+
+            % Compute the transmission matrices
+            Tp  = [Nm1; Nm2];
+            Tat = [Nm1*(Id - Hd);Nm2*(Id - Hd)];
+            Tab = [Nm1*(-Hd);Nm2*(-Hd)];
 
         end
 
@@ -354,14 +465,14 @@ classdef EnrichedElement < RegularElement
         end
 
         %------------------------------------------------------------------
-        % Function to compute the displacement field inside a given element
-        function u = displacementField(this,X)
+        % Function to compute the pressure field inside a given element
+        function p = pressureField(this,X)
         %
         % Input:
         %   X   : position vector in the global cartesian coordinate system
         %
         % Output:
-        %   u   : displacement vector evaluated in "X"
+        %   p   : pressure evaluated in "X"
         
             % Natural coordinate system
             Xn = this.shape.coordCartesianToNatural(this.node,X);
@@ -382,7 +493,7 @@ classdef EnrichedElement < RegularElement
             w = this.getEnrichmentDofs();
 
             % Displacement field
-            u = Nm*this.ue(1:this.nglp) + Nm*(h*eye(size(Hd)) - Hd)*M*w;
+            p = Nm*this.ue(1:this.nglp) + Nm*(h*eye(size(Hd)) - Hd)*M*w(1:2);
         
         end
 

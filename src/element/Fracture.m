@@ -65,7 +65,7 @@ classdef Fracture < handle
     methods(Abstract)
 
         % Compute the shape function matrix
-        N = interpJumpShapeMtrx(this,xn, enrVar)
+        N = shapeFncMtrx(this,xn)
         
         % Compute the jump transmission matrix M
         M = jumpTransmissionMtrx(this,X);
@@ -116,7 +116,7 @@ classdef Fracture < handle
 
                 % Initialize the constitutive model
                 if strcmp(this.matModel,'interfaceFlow')
-                    constModel = MaterialInterface_CubicLaw(this.mat);
+                    constModel = MaterialHydroInterface_CubicLaw(this.mat);
                 end
 
                 % Create the integration points
@@ -149,47 +149,75 @@ classdef Fracture < handle
         %   ke : element stiffness matrix
         %   fe : element internal force vector
         %
-        function [Hfl,Hft,Hftt,Hftb] = elementFluidFlowMtrcs(this,dUe,enrVar)
+        function [L1, L2, L3, Hf] = elementFluidFlowMtrcs(this,dPe,elem)
 
             % Initialize the element stiffness matrix and internal force
             % vector
-            ke = zeros(this.ndof,this.ndof);
-            fe = zeros(this.ndof,1);
-
-            % Compute the rotation matrix
-            R = this.rotationMtrx();
-
-            % Transform the enrichment dofs to the local coordinate system.
-            % [x y] => [shear normal]
-            dUe = R*dUe;
+            L1pp  = zeros(elem.nglp,elem.nglp);
+            L1pa  = zeros(elem.nglp,elem.nglp);
+            L1aa  = zeros(elem.nglp,elem.nglp);
+            L2ppf = zeros(elem.nglp,elem.nglpenr/2);
+            L2apf = zeros(elem.nglp,elem.nglpenr/2);
+            L3    = zeros(elem.nglpenr/2,elem.nglpenr/2);
+            Hf    = zeros(elem.nglpenr/2,elem.nglpenr/2);
 
             % Numerical integration of the stiffness matrix components
             for i = 1:this.nIntPoints
 
-                % Shape function matrix
-                N = this.interpJumpShapeMtrx(this.intPoint(i).X,enrVar);
+                % Cartesian coordinates of the integration point 
+                X = this.cartesianCoordinate(this.intPoint(i).X);
+
+                % Natural coordinates associated with the continuum element
+                % of this point
+                Xn = elem.shape.coordCartesianToNatural(elem.node,X);
+
+                % Shape function matrix of the continuum
+                N = elem.shape.shapeFncMtrx(Xn);
+                
+                % Enhanced shape function matrix
+                Ntop = elem.topEnhancedShapeFncMtrx(N);
+                Nbot = elem.bottomEnhancedShapeFncMtrx(N);
+
+                % Shape function matrix of the fracture
+                Nd = this.shapeFncMtrx(this.intPoint(i).X);
+
+                % Gradient of the shape function matrix
+                dNdds = this.gradShapeFncMtrx(this.intPoint(i).X);
 
                 % Evaluate the jump at the integration point in the local
                 % coordinate system
-                dw = N * dUe;
+                dp = Nd * dPe(1:2);
            
                 % Compute the stress vector and the constitutive matrix
-                [td,T] = this.intPoint(i).constitutiveModel(dw);
+                Kf = this.intPoint(i).getPermeabilityMtrx(dp);
         
                 % Numerical integration term. The determinant is ld/2.
                 c = this.intPoint(i).w * this.ld/2 * this.t;
+
+                % Get transverse flow leak-off parameters
+                cT = Kf(2); cB = Kf(3);
+
+                % Numerical integration of the coupling matrix associated
+                % with the porous-media dofs
+                L1pp = L1pp + (N' * N) * (cT + cB) * c;
+                L1pa = L1pa + ((N' * Ntop) * cT + (N' * Nbot) * cB) * c;
+                L1aa = L1aa + ((Ntop' * Ntop) * cT + (Nbot' * Nbot) * cB) * c;
+
+                % Numerical integration of the coupling matrix associated
+                % with the discontinuity dofs
+                L2ppf = L2ppf + (N' * Nd) * (cT + cB)  * c;
+                L2apf = L2apf + ((Ntop' * Nd) * cT + (Nbot' * Nd) * cB) * c;
         
-                % Numerical integration of the stiffness matrix and the
-                % internal force vector
-                Hft  = Hft  + N' * (ct + cb)  * N * c;
-                Hftt = Hftt + N' * ct  * N * c;
-                Hftb = Hftb + N' * cb  * N * c;
+                % Numerical integration of the fracture fluid-flow matrices
+                Hf = Hf  + (dNdds' * dNdds) * Kf(1) * c;
+                L3 = L3  + (Nd' * Nd) * (cT + cB)  * c;
 
             end
 
-            % Rotate to the global coordinate system
-            ke = R' * ke * R;
-            fe = R' * fe;
+            L1 = [ L1pp , L1pa;
+                   L1pa', L1aa];
+
+            L2 = [ L2ppf; L2apf ];
             
         end
 
@@ -206,6 +234,16 @@ classdef Fracture < handle
 
             % Tangential coordinate
             s = this.m*DX';
+
+        end
+
+        %------------------------------------------------------------------
+        % Compute the cartesian coordinates of a point given the tangential
+        % coordinate s.
+        function X = cartesianCoordinate(this,s)
+
+            % Cartesian coordinates of the given point
+            X = this.Xref + s*this.m;
 
         end
 

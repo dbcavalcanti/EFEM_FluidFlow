@@ -24,7 +24,7 @@ classdef Fracture_ConstantJump < Fracture
         % This function computes the matrix of the shape function
         % to evaluate the displacement jump based on the enrichment degrees
         % of freedom 'alpha'.
-        function N = interpJumpShapeMtrx(~,~,~)
+        function N = shapeFncMtrx(~,~,~)
 
             % Shape function matrix
             N = [ 1.0  0.0 ;

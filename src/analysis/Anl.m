@@ -57,6 +57,7 @@ classdef Anl < handle
             Us       = U(fixeddof); 
             
             % Solve the system of equilibrium equations
+            Ffs = Kfs * Us;
             Uf = (Kff) \ (Ff - Kfs * Us);
             
             % Compute the reaction forces

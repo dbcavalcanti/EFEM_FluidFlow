@@ -176,7 +176,8 @@ classdef EnrichedElement < RegularElement
                 Hf = Hf + L3;   % to the discontinuity matrix
 
                 % Compute the mapping matrix
-                T = this.elementMappingMtrx();
+%                 T = this.elementMappingMtrx();
+                T = this.elementMappingJumpMtrx();
 
                 % Compute the rotation matrix to change the enrichment dofs
                 R = [eye(this.nglp,this.nglp)  , zeros(this.nglp,this.nglpenr/2);
@@ -301,6 +302,37 @@ classdef EnrichedElement < RegularElement
 
             % Compute the matrix Gr
             Benr = B*(h*I - Hd);
+
+        end
+
+        % -----------------------------------------------------------------
+        % Mapping matrix associated to a element. This matrix is
+        % constructed by stacking by rows the mapping matrices evaluated at
+        % the element's nodes.
+        function Me = elementMappingJumpMtrx(this)
+            
+            % Initialize the element's mapping matrix
+            Me = zeros(this.nnd_el*this.ndof_nd,this.nglpenr/2);
+
+            % Natural coordinates associated with the continuum element
+            % of this point
+            Xn1 = this.shape.coordCartesianToNatural(this.node,this.fracture.node(1,:));
+            Xn2 = this.shape.coordCartesianToNatural(this.node,this.fracture.node(2,:));
+
+            % Shape function matrix of the continuum
+            N1 = this.shape.shapeFncMtrx(Xn1);
+            N2 = this.shape.shapeFncMtrx(Xn2);
+            
+            % Enhanced shape function matrix
+            Ntop1 = this.topEnhancedShapeFncMtrx(N1);
+            Nbot1 = this.bottomEnhancedShapeFncMtrx(N1);
+            Ntop2 = this.topEnhancedShapeFncMtrx(N2);
+            Nbot2 = this.bottomEnhancedShapeFncMtrx(N2);
+
+            % Inverse mapping matrix
+            Minv = [Ntop1-Nbot1; Ntop2-Nbot2];
+            %Me = inv(Minv'*Minv)*Minv'
+            Me = pinv(Minv);
 
         end
 
@@ -510,6 +542,38 @@ classdef EnrichedElement < RegularElement
             nFractNodes = size(fractNodes,1);
             this.result = Result(resNodes ,1:nNodes ,0.0*ones(nNodes,1) ,'');
             this.fracture.result = Result(fractNodes ,1:nFractNodes ,0.0*ones(nNodes,1) ,'');
+        end
+
+        %------------------------------------------------------------------
+        % Function to get the child elements from an enriched element 
+        % crossed by a fracture.
+        function elem_child = getChildElements(this)
+
+            % Heaviside function evaluated in the nodes of the element
+            h = this.heavisideFnc(this.node);
+
+            % Nodes and element connectivity at the sub-domain Omega^plus
+            NODE_plus  = [this.node(h>0,:); this.fracture.node];
+            elem_plus  = [this.connect(h>0),this.fracture.connect];
+
+            % Nodes and element connectivity at the sub-domain Omega^minus
+            NODE_minus = [this.node(h<1,:); this.fracture.node];
+            elem_minus = [this.connect(h<1),this.fracture.connect];
+           
+            % Get the order of the nodes for the element connectivity be
+            % done in a counterclockwise way
+            order_plus  = this.sortCounterClockWise(NODE_plus);
+            order_minus = this.sortCounterClockWise(NODE_minus);
+
+            % Correct the element's connectivity
+            elem_plus  = elem_plus(order_plus);
+            elem_minus = elem_minus(order_minus);
+
+            % Children elements matrix
+            elem_child = NaN(2,length(this.connect));
+            elem_child(1,1:length(elem_plus))  = elem_plus;
+            elem_child(2,1:length(elem_minus)) = elem_minus;
+
         end
 
     end

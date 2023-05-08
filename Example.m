@@ -54,8 +54,8 @@ mat = [K  gw  mu];  % Material parameters vector
 tractionLaw = 'interfaceFlow';  
 
 % Values of the material constitutive model parameters
-ct   = 1.0e-5;           % Leakoff at the top (m/(kPa*s))
-cb   = 1.0e-5;           % Leakoff at the bottom (m/(kPa*s))
+ct   = 1.0e-4;           % Leakoff at the top (m/(kPa*s))
+cb   = 1.0e-4;           % Leakoff at the bottom (m/(kPa*s))
 w    = 0.000;            % Initial aperture
 
 % Assemble the vector with the material properties
@@ -80,7 +80,7 @@ PRESCDISPL([3 4]) = [0;0];
 
 % Define the load conditions
 LOAD = zeros(size(NODE,1),1);
-LOAD([1 2]) = [0.05; 0.08];
+LOAD([1 2]) = -[0.05; 0.08];
 
 % --- Order of the integration rule for the domain ------------------------
 

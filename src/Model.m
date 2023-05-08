@@ -478,27 +478,30 @@ classdef Model < handle
                 % element. This displacement can contain the enhancement
                 % degrees of freedom.
                 this.element(el).type.ue = this.U(this.element(el).type.gle); 
-                vertexData = zeros(length(this.element(el).type.result.faces),1);
-                for i = 1:length(this.element(el).type.result.faces)
-                    X = this.element(el).type.result.vertices(i,:);
-                    if strcmp(type,'Model')
-                        vertexData(i) = 0.0;
-                    elseif strcmp(type,'Pressure')
-                        p = this.element(el).type.pressureField(X);
-                        vertexData(i) = p;
-                    elseif strcmp(type,'Ux')
-                        u = this.element(el).type.displacementField(X);
-                        vertexData(i) = u(1);
-                    elseif strcmp(type,'Uy')
-                        u = this.element(el).type.displacementField(X);
-                        vertexData(i) = u(2);
-                    elseif strcmp(type,'Sx')
-                        %
-                    elseif strcmp(type,'Sy')
-                        %
+                res = this.element(el).type.result;
+                for j = 1:length(res)
+                    vertexData = zeros(length(res(j).faces),1);
+                    for i = 1:length(res(j).faces)
+                        X = res(j).vertices(i,:);
+                        if strcmp(type,'Model')
+                            vertexData(i) = 0.0;
+                        elseif strcmp(type,'Pressure')
+                            p = this.element(el).type.pressureField(X);
+                            vertexData(i) = p;
+                        elseif strcmp(type,'Ux')
+                            u = this.element(el).type.displacementField(X);
+                            vertexData(i) = u(1);
+                        elseif strcmp(type,'Uy')
+                            u = this.element(el).type.displacementField(X);
+                            vertexData(i) = u(2);
+                        elseif strcmp(type,'Sx')
+                            %
+                        elseif strcmp(type,'Sy')
+                            %
+                        end
                     end
+                    this.element(el).type.result(j).setVertexData(vertexData);
                 end
-                this.element(el).type.result.setVertexData(vertexData);
             end
         end
 

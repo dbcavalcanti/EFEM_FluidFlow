@@ -537,45 +537,36 @@ classdef EnrichedElement < RegularElement
         % Function to create an array of result objects based on the
         % children elements.
         function createResults(this)
-            [resNodes,fractNodes] = this.getResultNodes();
-            nNodes      = size(resNodes,1);
-            nFractNodes = size(fractNodes,1);
-            this.result = Result(resNodes ,1:nNodes ,0.0*ones(nNodes,1) ,'');
-            this.fracture.result = Result(fractNodes ,1:nFractNodes ,0.0*ones(nNodes,1) ,'');
+            result(2,1) = Result();
+            [NODE_plus,elem_plus,NODE_minus,elem_minus] = this.getChildElements();
+            result(1) = Result(NODE_plus ,elem_plus' ,0.0*ones(length(elem_plus),1) ,'');
+            result(2) = Result(NODE_minus,elem_minus',0.0*ones(length(elem_minus),1),'');
+            this.result = result;
+%             [resNodes,fractNodes] = this.getResultNodes();
+%             nNodes      = size(resNodes,1);
+%             nFractNodes = size(fractNodes,1);
+%             this.result = Result(resNodes ,1:nNodes ,0.0*ones(nNodes,1) ,'');
+%             this.fracture.result = Result(fractNodes ,1:nFractNodes ,0.0*ones(nNodes,1) ,'');
         end
 
         %------------------------------------------------------------------
-        % Function to get the child elements from an enriched element 
+       % Function to get the child elements from an enriched element 
         % crossed by a fracture.
-        function elem_child = getChildElements(this)
+        function [NODE_plus,elem_plus,NODE_minus,elem_minus] = getChildElements(this)
 
             % Heaviside function evaluated in the nodes of the element
             h = this.heavisideFnc(this.node);
 
-            % Nodes and element connectivity at the sub-domain Omega^plus
+            % Nodes at the sub-domains Omega^plus and Omega^minus
             NODE_plus  = [this.node(h>0,:); this.fracture.node];
-            elem_plus  = [this.connect(h>0),this.fracture.connect];
-
-            % Nodes and element connectivity at the sub-domain Omega^minus
             NODE_minus = [this.node(h<1,:); this.fracture.node];
-            elem_minus = [this.connect(h<1),this.fracture.connect];
            
             % Get the order of the nodes for the element connectivity be
             % done in a counterclockwise way
-            order_plus  = this.sortCounterClockWise(NODE_plus);
-            order_minus = this.sortCounterClockWise(NODE_minus);
-
-            % Correct the element's connectivity
-            elem_plus  = elem_plus(order_plus);
-            elem_minus = elem_minus(order_minus);
-
-            % Children elements matrix
-            elem_child = NaN(2,length(this.connect));
-            elem_child(1,1:length(elem_plus))  = elem_plus;
-            elem_child(2,1:length(elem_minus)) = elem_minus;
+            elem_plus  = this.sortCounterClockWise(NODE_plus);
+            elem_minus = this.sortCounterClockWise(NODE_minus);
 
         end
-
     end
 
     methods(Static)

@@ -171,12 +171,15 @@ classdef Model < handle
             if strcmp(this.lvlEnrVar,'global') && (this.jumpOrder == 1)
                 
                 this.IDfrac = zeros(size(this.NODE_D,1));
+%                 this.IDfrac = zeros(2,3);
                 count = this.ndof + 1;
                 for i = 1:this.nfracnodes
                     % Each discontinuity node has a jump of pressure and a
                     % longitudinal pressure
                     this.IDfrac(i,:) = [count count+1];
+%                     this.IDfrac(i,:) = [count count+1 count+2];
                     count = count + 2;
+%                     count = count + 3;
                 end
                 for el = 1:this.nelem
                     if sum(this.IDenr(el,:)) > 0
@@ -341,7 +344,7 @@ classdef Model < handle
             
                 % Assemble
                 H(gle,gle) = H(gle,gle) + He;
-                Qint(gle)  = Qint(gle) + qe;
+%                 Qint(gle)  = Qint(gle) + qe;
                 
             end
         end
@@ -373,7 +376,7 @@ classdef Model < handle
                 if (this.jumpOrder == 1)
                     fprintf('\nEl        dp1            dp2        pf1            pf2\n');
                 elseif (this.jumpOrder == 0)
-                    fprintf('\nEl        dp\n');
+                    fprintf('\nEl        dp             pf1 \n');
                 end
                 if this.staticCondensation == false
                     for el = 1:this.nelem

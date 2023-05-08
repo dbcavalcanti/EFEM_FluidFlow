@@ -250,6 +250,7 @@ classdef Shape_ISOQ4 < Shape
                 % Get the integration points of a triangle
                 shapeCST = Shape_CST();
                 [x,w,nIntPoints] = shapeCST.getIntegrationPoints(intOrder,[]);
+%                 [x,w,nIntPoints] = shapeCST.getIntegrationPoints(1,[]);
 
                 % Total number of integration points
                 n = nIntPoints*(size(tri_plus,1) + size(tri_minus,1));
@@ -268,7 +269,7 @@ classdef Shape_ISOQ4 < Shape
                             Node_minus(tri_minus(subelem,:),:),x(:,ip));
 
                         % Weight
-                        detJ = 1;%shapeCST.detJacobian(Node_minus(tri_minus(subelem,:),:),x(:,ip));
+                        detJ = shapeCST.detJacobian(Node_minus(tri_minus(subelem,:),:),x(:,ip));
                         W(count) = w(ip)*detJ;
                 
                         % Mapping the integration point to the quadrilateral
@@ -286,7 +287,7 @@ classdef Shape_ISOQ4 < Shape
                             Node_plus(tri_plus(subelem,:),:),x(:,ip));
                         
                         % Weight
-                        detJ = 1;%shapeCST.detJacobian( Node_plus(tri_plus(subelem,:),:),x(:,ip));
+                        detJ = shapeCST.detJacobian( Node_plus(tri_plus(subelem,:),:),x(:,ip));
                         W(count) = w(ip)*detJ;
                 
                         % Mapping the integration point to the quadrilateral

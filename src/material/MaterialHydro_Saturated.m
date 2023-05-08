@@ -29,11 +29,11 @@ classdef MaterialHydro_Saturated < MaterialHydro
             % Conductivity
             k = this.parameters(1);
 
-            % Fluid dynamic viscosity
-            mu = this.parameters(2);
+            % Water specific weight
+            gw = this.parameters(2);
 
-            % Constitutive matrix
-            K = [k 0.0; 0.0 k]/mu;
+            % Permeability matrix: K/gw = k/mu
+            K = [k 0.0; 0.0 k]/gw;
 
         end
 

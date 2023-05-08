@@ -160,6 +160,10 @@ classdef Fracture < handle
             L2apf = zeros(elem.nglp,elem.nglpenr/2);
             L3    = zeros(elem.nglpenr/2,elem.nglpenr/2);
             Hf    = zeros(elem.nglpenr/2,elem.nglpenr/2);
+%             L2ppf = zeros(elem.nglp,2);
+%             L2apf = zeros(elem.nglp,2);
+%             L3    = zeros(2,2);
+%             Hf    = zeros(2,2);
 
             % Numerical integration of the stiffness matrix components
             for i = 1:this.nIntPoints
@@ -245,41 +249,6 @@ classdef Fracture < handle
             % Cartesian coordinates of the given point
             X = this.Xref + s*this.m;
 
-        end
-
-        %------------------------------------------------------------------
-        % This function compute the stress interpolation vector
-        function S = stressIntVctFnc(this, shape, node, intpOrder)
-
-            % Initialize the Gram matrix
-            S = zeros(shape.getSizeStressIntVct(), intpOrder+1);
-
-            % Get the centroid of the element
-            X0 = this.Xref;
-%             X0 = shape.computeCentroid(node);
- 
-            % Numerical integration of the stiffness matrix components
-            for i = 1:this.nIntPoints
-           
-                % Tangential coordinate and point in the global coordinate
-                % system
-                [s,X] = this.tangentialLocCoordinate(this.intPoint(i).X);
-
-                % Relative position coordinate
-                Xrel = X - X0;
-
-                % Compute the integrand of the stress interpolation vector
-                dS = shape.integrandStressIntVct(s,Xrel,intpOrder);
-        
-                % Numerical integration term. The determinant is ld/2.
-                c = this.intPoint(i).w * this.ld/2;
-        
-                % Numerical integration of the stiffness matrix and the
-                % internal force vector
-                S = S + dS * c;
-
-            end
-            
         end
 
     end

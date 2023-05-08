@@ -309,7 +309,7 @@ classdef EFEMDraw < handle
             dim = max(abs(max(draw.model.NODE(:,1)) - min(draw.model.NODE(:,1))),abs(max(draw.model.NODE(:,1)) - min(draw.model.NODE(:,1))));
             supsize = dim * EFEMDraw.supsize_fac;
             for i = 1:draw.model.nnodes
-                if (draw.model.SUPP(i,1)==1 || draw.model.SUPP(i,2)==1)
+                if draw.model.SUPP(i,1)==1
                     posx = draw.model.NODE(i,1);
                     posy = draw.model.NODE(i,2);
                     EFEMDraw.triangle(posx,posy,supsize,supsize,-pi/2,[0 0 1]);

@@ -27,8 +27,17 @@ classdef Fracture_ConstantJump < Fracture
         function N = shapeFncMtrx(~,~,~)
 
             % Shape function matrix
-            N = [ 1.0  0.0 ;
-                  0.0  1.0 ];
+            N = 1.0;
+
+        end
+
+        %------------------------------------------------------------------
+        % This function computes the matrix of the derivatives of the shape
+        % functions with respect to the tangential coordinate s
+        function dNds = gradShapeFncMtrx(this,~)
+
+            % Gradient of the shape function matrix
+            dNds = 0.0;
 
         end
 
@@ -38,8 +47,7 @@ classdef Fracture_ConstantJump < Fracture
         % displacement field.
         function M = jumpTransmissionMtrx(~,~)
 
-            M = [ 1.0  0.0;
-                  0.0  1.0 ];
+            M = 1.0;
 
         end
 

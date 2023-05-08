@@ -130,14 +130,30 @@ classdef EnrichedElement < RegularElement
             H = [Hpp, Hpa;
                  Hap, Haa];
 
+            % TEMP: Just to compare with GeMA
+%             R = eye(8);
+%             Ra = R(5:8,:);
+%             R(7,:) = R(4,:);
+%             R(5,:) = R(3,:);
+%             R(3,:) = R(2,:);
+%             R(2,:) = Ra(1,:);
+%             R(4,:) = Ra(2,:);
+%             R(6,:) = Ra(3,:);
+%             R(8,:) = Ra(4,:);
+%             Hr = R*H*R';
+
             % Get the discontinuity stiffness matrix and internal force
             % vector
             [L1, L2, L3, Hf] = this.fracture.elementFluidFlowMtrcs(dPeEnr,this);
 
+%             L1r = R*L1*R';
+%             L2r = R*L2;
+
             % Assemble the element fluid flow matrix
             [He,~] = this.assembleElemHeQe(H, L1, L2, L3, Hf,qp,qa);
 
-            qe = zeros(this.nglp+this.nglpenr, 1);
+%             qe = zeros(this.nglp+this.nglpenr, 1);
+            qe = zeros(this.nglp+this.nglp, 1);
             
         end
 
@@ -175,7 +191,7 @@ classdef EnrichedElement < RegularElement
 
                 % Assemble 
                 He = [  H , -L2;
-                      -L2', (Hf+L3)];
+                      -L2',  Hf];
 
                 qe = [];
 
@@ -211,96 +227,6 @@ classdef EnrichedElement < RegularElement
 
             end
 
-        end
-
-        %------------------------------------------------------------------
-        % Compute the increment of the enrichment dof based on the static
-        % condensation process.
-        function dPeEnr = staticCondensation_ComputeIncrEnrDofs(this,DUe)
-
-            % Newton-Raphson parameters
-            maxiter = 10;
-            conv    = false;
-            tol     = 1.0e-9;
-            iter    = 0;
-
-            % Initial increment of the enrichment dofs
-            dPeEnr = zeros(this.nglpenr,1);
-
-            % Initialize the iterative process
-            while (conv == false) && (iter < maxiter)
-
-                % Compute the stiffness matrix and internal force vector
-                [kww,fw] = this.discontinuityKFint(DUe,dPeEnr);
-
-                % Check convergence
-                if norm(fw) < tol, conv = true; end
-
-                % Compute the total increment of the enrichment dofs
-                dPeEnr = dPeEnr - kww\fw;
-
-                % Update the iteration counter
-                iter = iter + 1;
-
-            end
-        end
-
-        %------------------------------------------------------------------
-        % This function assembles the discontinuity stiffness matrix and 
-        % internal force vector
-        % 
-        % Input:
-        %   due: vector with the total increment of the nodal displacement
-        %        vector associated with the element.
-        %   dPeEnr: vector with the total increment of the nodal displacement 
-        %        vector associated with the element.
-        %
-        % Output:
-        %   kww : tangent discontinuity stiffness matrix
-        %   fw  : discontinuity internal force vector
-        %
-        function [kww,fw] = discontinuityKFint(this, due, dPeEnr)
-
-            % Initialize the discontinuity stiffness matrix
-            kww = zeros(this.nglpenr, this.nglpenr);
-
-            % Initialize the internal force vector
-            fw = zeros(this.nglpenr, 1);
-
-            % Numerical integration of the stiffness matrix components
-            for i = 1:this.nIntPoints
-            
-                % Compute the B matrix at the int. point and the detJ
-                [B, detJ] = this.shape.BMatrix(this.node,this.intPoint(i).X);
-
-                % Compute the matrices Gr and Gv
-                [Gr, Gv] = this.enhancedStrainCompatibilityMtrcs(B,this.intPoint(i).X);
-
-                % Compute the increment of the strain vector
-                dStrain = B*due + Gr*dPeEnr;
-        
-                % Compute the stress vector and the constitutive matrix
-                [stress,D] = this.intPoint(i).constitutiveModel(dStrain);
-        
-                % Numerical integration coefficient
-                c = this.intPoint(i).w * detJ * this.t;
-        
-                % Numerical integration of the stiffness sub-matrices
-                kww = kww + Gv'* D * Gr * c;
-
-                % Numerical integration of the internal force sub-vectors
-                fw = fw + Gv' * stress * c;
-
-            end
-
-            % Get the discontinuity stiffness matrix and internal force
-            % vector
-            [kd, fd] = this.fracture.elementKeFint(dPeEnr,this.enrVar);
-
-            % Add the fracture stiffness contribution
-            kww = kww + kd;
-            fw  = fw  + fd;
-            
         end
 
         % -----------------------------------------------------------------
@@ -346,8 +272,11 @@ classdef EnrichedElement < RegularElement
             % Compute the Heaviside matrix
             Hd = this.heavisideMtrx();
 
+            % Identity matrix
+            I = eye(size(Hd,1));
+
             % Compute the enhanced shape function matrix
-            Nenr = -(N*Hd);
+            Nenr = N*(0*I-Hd);
 
         end
 
@@ -399,36 +328,6 @@ classdef EnrichedElement < RegularElement
         end
 
         % -----------------------------------------------------------------
-        % Mapping matrix associated to a element. This matrix is
-        % constructed by stacking by rows the mapping matrices evaluated at
-        % the element's nodes.
-        function [Tp, Tat, Tab] = getTransmissionMtrcs(this)
-
-            % Get the nodes of the discontinuity
-            nd = this.fracture.node;
-
-            % Get the natural coordinates of the nodes of the discontinuity
-            Xn1 = this.shape.coordCartesianToNatural(this.node,nd(1,:));
-            Xn2 = this.shape.coordCartesianToNatural(this.node,nd(2,:));
-
-            % Compute the Heaviside matrix
-            Hd = this.heavisideMtrx();
-
-            % Auxiliary identity matrix
-            Id = eye(size(Hd));
-
-            % Compute the shape function matrices at the two nodes
-            Nm1 = this.shape.shapeFncMtrx(Xn1);
-            Nm2 = this.shape.shapeFncMtrx(Xn2);
-
-            % Compute the transmission matrices
-            Tp  = [Nm1; Nm2];
-            Tat = [Nm1*(Id - Hd);Nm2*(Id - Hd)];
-            Tab = [Nm1*(-Hd);Nm2*(-Hd)];
-
-        end
-
-        % -----------------------------------------------------------------
         % Heaviside function evaluated at the point (or set of points) X,
         % wrt to the reference point of the fracture (Xref).
         function h = heavisideFnc(this,X)
@@ -444,6 +343,7 @@ classdef EnrichedElement < RegularElement
             
             % Heaviside function evaluated in the nodes of the element
             h = max(sign(DX*n'),0.0);
+%             h = sign(DX*n');
 
         end
 
@@ -480,11 +380,8 @@ classdef EnrichedElement < RegularElement
             % Vector with the shape functions
             Nm = this.shape.shapeFncMtrx(Xn);
 
-            % Heaviside function evaluated in X
-            h = this.heavisideFnc(X);
-
-            % Compute the Heaviside matrix
-            Hd = this.heavisideMtrx();
+            % Enriched shape function vector
+            Nenr = this.enhancedShapeFncMtrx(Nm, Xn);
 
             % Compute the mapping matrix
             M = this.elementMappingMtrx();
@@ -493,7 +390,7 @@ classdef EnrichedElement < RegularElement
             w = this.getEnrichmentDofs();
 
             % Displacement field
-            p = Nm*this.ue(1:this.nglp) + Nm*(h*eye(size(Hd)) - Hd)*M*w(1:2);
+            p = Nm*this.ue(1:this.nglp) + Nenr*M*w(1:this.nglpenr/2);
         
         end
 

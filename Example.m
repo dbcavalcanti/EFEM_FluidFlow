@@ -42,9 +42,10 @@ FRACT = [1 2];
 matModel = 'saturated';
 
 % Material parameters
-K   = 1.0;        % Hydraulic permeability (m/s)
-mu  = 1.0e-3;     % Fluid dynamic viscosity (Pa*s)
-mat = [K  mu];    % Material parameters vector
+K   = 1.1574e-05;   % Hydraulic permeability (m/s)
+mu  = 1.0e-6;       % Fluid dynamic viscosity (kPa*s)
+gw  = 9.81;         % Specific weight of water (kPa/m)
+mat = [K  gw  mu];  % Material parameters vector
 
 % --- Material properties of the fracture ---------------------------------
 
@@ -53,9 +54,9 @@ mat = [K  mu];    % Material parameters vector
 tractionLaw = 'interfaceFlow';  
 
 % Values of the material constitutive model parameters
-ct   = 100;            % Leakoff at the top
-cb   = 100;            % Leakoff at the bottom
-w    = 0.00;              % Initial aperture
+ct   = 1.0e4;           % Leakoff at the top (m/(kPa*s))
+cb   = 1.0e4;           % Leakoff at the bottom (m/(kPa*s))
+w    = 0.000;            % Initial aperture
 
 % Assemble the vector with the material properties
 matfract = [w, mu, ct, cb];
@@ -69,14 +70,17 @@ anm = 'Hydro';
 
 % Define supports
 SUPP = zeros(size(NODE,1),1);
-SUPP([1 2 3 4],:) = [1; 1; 1; 1];
+% SUPP([1 2 3 4],:) = [1; 1; 1; 1];
+SUPP([3 4],:) = [1; 1];
 
-% Define prescribe displacements
+% Define prescribe pressures (kPa)
 PRESCDISPL = zeros(size(NODE,1),1);
-PRESCDISPL([1 2 3 4]) = [100;100;0;0];
+% PRESCDISPL([1 2 3 4]) = [1;1;0;0];
+PRESCDISPL([3 4]) = [0;0];
 
 % Define the load conditions
 LOAD = zeros(size(NODE,1),1);
+LOAD([1 2]) = [0.05; 0.05];
 
 % --- Order of the integration rule for the domain ------------------------
 
@@ -89,10 +93,10 @@ intOrder = 2;
 subDivInt = true;
 
 % Order of the interpolation of the jump displacement field
-jumpOrder = 1;
+jumpOrder = 0;
 
 % Level of the enrichment dof ('local' or 'global')
-lvlEnrVar = 'global';
+lvlEnrVar = 'local';
 
 % Static condensation
 staticCondensation = false;

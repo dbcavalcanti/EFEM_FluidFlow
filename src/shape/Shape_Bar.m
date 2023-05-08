@@ -115,8 +115,8 @@ classdef Shape_Bar < Shape
          %      w: Weight associated to each integration point
          %      nIntPoints: Total number of integration points
          function [X,w,nIntPoints] = getIntegrationPoints(~,~,~)
-
-             X          = [-1.0, 1.0];  
+             X          = [-0.577350269189626 0.577350269189626];
+%             X          = [-1.0, 1.0];  
              w          = [ 1.0, 1.0];
              nIntPoints = 2;
 

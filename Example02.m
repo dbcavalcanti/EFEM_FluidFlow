@@ -12,29 +12,30 @@ initWorkspace;
 %% ========================== MODEL CREATION ==============================
 % --- Mesh of continuum elements ------------------------------------------
 
-% Nodes' coordinates (mm)
-NODE = [0.0   0.0;
-        2.0   0.0;
-        2.0   2.0;
-        0.0   2.0];
+% Mesh properties
+Lx = 2.0;      % Horizontal dimension (m)
+Ly = 2.0;      % Vertical dimension (m)
+Nx = 50;        % Number of elements in the x-direction
+Ny = 50;        % Number of elements in the y-direction
+
+% Generate the mesh
+[NODE,ELEM] = regularMesh(Lx, Ly, Nx, Ny);
 
 % Type of elements
 type = 'ISOQ4';
-
-% Element's connectivity
-ELEM = [1 2 3 4];
 
 % Thickness (mm)
 t = 1.0;
 
 % --- Mesh of the fracture elements ---------------------------------------
 
-% Coordinates of the nodes that define the discontinuities (mm)
-NODE_D = [0.0  1.0;
-          2.0  1.5];
+XD = [0.0 , 1.5;
+      2.0 , 1.5];
 
-% Fractures definition (by segments)
-FRACT = [1 2];
+SEGD = [1 2];
+
+% Generate fracture elements
+[NODE_D,FRACT] = fractureMesh(NODE,ELEM,XD,SEGD);
 
 % --- Material properties of the domain -----------------------------------
 
@@ -42,9 +43,10 @@ FRACT = [1 2];
 matModel = 'saturated';
 
 % Material parameters
-K   = 1.0;        % Hydraulic permeability (m/s)
-mu  = 1.0e-3;     % Fluid dynamic viscosity (Pa*s)
-mat = [K  mu];    % Material parameters vector
+K   = 1.1574e-05;   % Hydraulic permeability (m/s)
+mu  = 1.0e-6;       % Fluid dynamic viscosity (kPa*s)
+gw  = 9.81;         % Specific weight of water (kPa/m)
+mat = [K  gw  mu];  % Material parameters vector
 
 % --- Material properties of the fracture ---------------------------------
 
@@ -53,12 +55,12 @@ mat = [K  mu];    % Material parameters vector
 tractionLaw = 'interfaceFlow';  
 
 % Values of the material constitutive model parameters
-ct   = 10000;            % Leakoff at the top
-cb   = 10000;            % Leakoff at the bottom
-w    = 0.00;              % Initial aperture
+ct   = 1.0e-5;           % Leakoff at the top (m/(kPa*s))
+cb   = 1.0e-5;           % Leakoff at the bottom (m/(kPa*s))
+w    = 0.000;            % Initial aperture
 
 % Assemble the vector with the material properties
-matfract = [w, mu, ct, cb];
+matfract = repmat([w, mu, ct, cb],[size(FRACT,1) 1]);
 
 % --- Analysis model ------------------------------------------------------
 
@@ -67,16 +69,15 @@ anm = 'Hydro';
 
 % --- Boundary conditions --------------------------------------------------
 
-% Define supports
-SUPP = zeros(size(NODE,1),1);
-SUPP([1 2 3 4],:) = [1; 1; 1; 1];
+CoordSupp= [1 -1 Ly];                % [rtx rty cx cy] If cx,cy<0, line              
+CoordLoad= [0.025/Nx -1 0];
+            %1    0    Lx  Ly];       % [fx fy cx cy]  If cx,cy<0, line
 
-% Define prescribe displacements
+% Define supports and loads
+[SUPP, LOAD] = boundaryConditions(NODE,CoordSupp,CoordLoad,Lx, Ly, Nx, Ny);
+
+% Define prescribe pressures (kPa)
 PRESCDISPL = zeros(size(NODE,1),1);
-PRESCDISPL([1 2 3 4]) = [100;80;20;30];
-
-% Define the load conditions
-LOAD = zeros(size(NODE,1),1);
 
 % --- Order of the integration rule for the domain ------------------------
 
@@ -100,7 +101,7 @@ staticCondensation = false;
 %% ========================= PRE-PROCESSING ===============================
 
 % Compute the matrix to identify to which element the fracture belongs
-IDenr = 1; 
+IDenr= fractureIDMtrx(NODE,ELEM,NODE_D,FRACT);
 
 %% ========================= INITIALIZATION ===============================
 

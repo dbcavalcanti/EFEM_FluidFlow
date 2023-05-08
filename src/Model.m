@@ -170,7 +170,7 @@ classdef Model < handle
            
             if strcmp(this.lvlEnrVar,'global') && (this.jumpOrder == 1)
                 
-                this.IDfrac = zeros(size(this.NODE_D,1));
+                this.IDfrac = zeros(size(this.NODE_D,1),2);
 %                 this.IDfrac = zeros(2,3);
                 count = this.ndof + 1;
                 for i = 1:this.nfracnodes
@@ -185,8 +185,10 @@ classdef Model < handle
                     if sum(this.IDenr(el,:)) > 0
                         id = find(this.IDenr(el,:)==1);
                         for i = 1:length(id)
-                            this.GLPenr{el} = [this.IDfrac(this.FRACT(id(i),1),:),...
-                                            this.IDfrac(this.FRACT(id(i),2),:)];
+                            this.GLPenr{el} = [ this.IDfrac(this.FRACT(id(i),1),1),...
+                                                this.IDfrac(this.FRACT(id(i),2),1),...
+                                                this.IDfrac(this.FRACT(id(i),1),2),...
+                                                this.IDfrac(this.FRACT(id(i),2),2)];
                         end
                     end
                 end
@@ -374,17 +376,17 @@ classdef Model < handle
                 fprintf('\n\tJump interpolation order:    %d',  this.jumpOrder);
                 fprintf('\n\tApply static condensation:   %s\n',mat2str(this.staticCondensation));
                 if (this.jumpOrder == 1)
-                    fprintf('\nEl        dp1            dp2        pf1            pf2\n');
+                    fprintf('\nEl         dp1              dp2            pf1             pf2\n');
                 elseif (this.jumpOrder == 0)
-                    fprintf('\nEl        dp             pf1 \n');
+                    fprintf('\nEl          dp                 pf1 \n');
                 end
                 if this.staticCondensation == false
                     for el = 1:this.nelem
                         if sum(this.IDenr(el,:)) > 0
                             if (this.jumpOrder == 0)
-                                fprintf('%2d     %10.3e     %10.3e\n',el,this.U(this.GLPenr{el}));
+                                fprintf('%2d     %10.5e     %10.5e\n',el,this.U(this.GLPenr{el}));
                             elseif (this.jumpOrder == 1)
-                                fprintf('%2d     %10.3e    %10.3e     %10.3e    %10.3e\n',el,this.U(this.GLPenr{el}));
+                                fprintf('%2d     %10.5e    %10.5e     %10.5e    %10.5e\n',el,this.U(this.GLPenr{el}));
                             end
                         end
                     end

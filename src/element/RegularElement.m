@@ -154,6 +154,27 @@ classdef RegularElement < handle
         
         end
 
+        %------------------------------------------------------------------
+        % Function to compute the pressure field inside a given element
+        function p = pressureField(this,X)
+        %
+        % Input:
+        %   X   : position vector in the global cartesian coordinate system
+        %
+        % Output:
+        %   p   : pressure evaluated in "X"
+        
+            % Natural coordinate system
+            Xn = this.shape.coordCartesianToNatural(this.node,X);
+            
+            % Vector with the shape functions
+            Nm = this.shape.shapeFncMtrx(Xn);
+
+            % Displacement field
+            p = Nm*this.ue(1:this.nglp);
+        
+        end
+
         % -----------------------------------------------------------------
         % Function to update the state variables
         function updateStateVar(this)
